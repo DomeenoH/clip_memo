@@ -9,9 +9,9 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ error: "No content provided" }), { status: 400 });
     }
 
-    // Using Qwen 1.5 7B Chat - a great balance of speed and instruction following
+    // Using Llama 3.1 8B Instruct - fast and reliable for JSON extraction
     // Note: You must enable Workers AI in your Cloudflare Dashboard for this project
-    const model = "@cf/qwen/qwen1.5-7b-chat-awq";
+    const model = "@cf/meta/llama-3.1-8b-instruct";
 
     const systemPrompt = `You are a helper for a personal diary app. Your job is to analyze the user's input and extract structured metadata in JSON format.
     
@@ -35,7 +35,7 @@ export async function onRequestPost(context) {
 
     // Parse the raw response to ensure it's valid JSON, or attempt to clean it
     let resultText = response.response;
-    
+
     // Attempt to extract JSON if the model added markdown blocks
     const jsonMatch = resultText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
