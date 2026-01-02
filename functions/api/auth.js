@@ -12,7 +12,7 @@ export async function onRequestPost(context) {
         }
 
         // Get the stored password hash from environment variable
-        const storedHash = env.AUTH_PASSWORD_HASH;
+        let storedHash = env.AUTH_PASSWORD_HASH;
         if (!storedHash) {
             console.error("AUTH_PASSWORD_HASH environment variable not set");
             return new Response(JSON.stringify({ error: "Server configuration error" }), {
@@ -20,6 +20,9 @@ export async function onRequestPost(context) {
                 headers: { "Content-Type": "application/json" },
             });
         }
+
+        // Normalize stored hash
+        storedHash = storedHash.trim().toLowerCase();
 
         // Compute SHA-256 hash of the provided password
         const encoder = new TextEncoder();
@@ -29,7 +32,8 @@ export async function onRequestPost(context) {
         const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 
         // Compare hashes
-        if (hashHex !== storedHash.toLowerCase()) {
+        if (hashHex !== storedHash) {
+            console.log(`Auth failed. Computed: ${hashHex.substring(0, 6)}..., Stored: ${storedHash.substring(0, 6)}...`);
             return new Response(JSON.stringify({ error: "Invalid password" }), {
                 status: 401,
                 headers: { "Content-Type": "application/json" },
