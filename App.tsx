@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import NoteInput from './components/NoteInput';
 import NoteItem from './components/NoteItem';
 import Header from './components/Header';
+import AuthGate, { checkAuthToken } from './components/AuthGate';
 import { Note, FilterType } from './types';
 import { analyzeNoteWithGemini } from './services/geminiService';
 
@@ -41,11 +42,24 @@ const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<FilterType>(FilterType.ALL);
   const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Check authentication on mount
+  useEffect(() => {
+    const verifyAuth = async () => {
+      const isValid = await checkAuthToken();
+      setIsAuthenticated(isValid);
+      setIsCheckingAuth(false);
+    };
+    verifyAuth();
+  }, []);
+
   // Load from LocalStorage
   useEffect(() => {
+    if (!isAuthenticated) return;
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
@@ -54,7 +68,7 @@ const App: React.FC = () => {
         console.error("Failed to load notes", e);
       }
     }
-  }, []);
+  }, [isAuthenticated]);
 
   // Keyboard shortcut listener
   useEffect(() => {
@@ -157,6 +171,20 @@ const App: React.FC = () => {
   const groupedNotes = useMemo(() => groupNotesByDate(filteredNotes), [filteredNotes]);
   const hasNotes = notes.length > 0;
   const hasFilteredResults = filteredNotes.length > 0;
+
+  // Show loading state while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center">
+        <div className="text-stone-400 animate-pulse">加载中...</div>
+      </div>
+    );
+  }
+
+  // Show auth gate if not authenticated
+  if (!isAuthenticated) {
+    return <AuthGate onSuccess={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#fafafa] pb-32">
