@@ -1,0 +1,7 @@
+{
+  "name": "Clip Memo",
+  "description": "一个受 Andrej Karpathy 启发的 Append-only 记忆流工具。部署于 Cloudflare，由 Qwen AI 驱动。",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
