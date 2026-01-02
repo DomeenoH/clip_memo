@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import NoteInput from './components/NoteInput';
 import NoteItem from './components/NoteItem';
 import Header from './components/Header';
-import AuthGate, { checkAuthToken } from './components/AuthGate';
+import AuthGate, { checkAuthToken, getAuthToken, clearAuthToken } from './components/AuthGate';
 import { Note, FilterType } from './types';
 import { analyzeNoteWithGemini } from './services/geminiService';
 
@@ -44,6 +44,8 @@ const App: React.FC = () => {
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // UI feedback for network
   
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,17 +59,37 @@ const App: React.FC = () => {
     verifyAuth();
   }, []);
 
-  // Load from LocalStorage
+  // Load from Cloud (KV)
   useEffect(() => {
     if (!isAuthenticated) return;
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    
+    const fetchNotes = async () => {
       try {
-        setNotes(JSON.parse(saved));
+        const token = getAuthToken();
+        const res = await fetch(`/api/notes?token=${encodeURIComponent(token || '')}`);
+        
+        if (res.status === 401) {
+           clearAuthToken();
+           setIsAuthenticated(false);
+           return;
+        }
+
+        if (res.ok) {
+          const cloudNotes = await res.json();
+          // Optional: Merge with local storage if needed? 
+          // For now, strict cloud source of truth.
+          if (Array.isArray(cloudNotes)) {
+             setNotes(cloudNotes);
+          }
+        }
       } catch (e) {
-        console.error("Failed to load notes", e);
+        console.error("Failed to load notes from cloud", e);
+      } finally {
+        setIsLoaded(true);
       }
-    }
+    };
+
+    fetchNotes();
   }, [isAuthenticated]);
 
   // Keyboard shortcut listener
@@ -83,10 +105,29 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Save to LocalStorage
+  // Save to Cloud (KV)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-  }, [notes]);
+    if (!isAuthenticated || !isLoaded) return;
+    
+    // Debounce save to avoid too many requests
+    const timeoutId = setTimeout(async () => {
+      setIsSaving(true);
+      try {
+        const token = getAuthToken();
+        await fetch('/api/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, notes })
+        });
+      } catch (e) {
+        console.error("Failed to save to cloud", e);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1000); // 1 second debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [notes, isAuthenticated, isLoaded]);
 
   const handleAddNote = async (content: string) => {
     const tempId = Date.now().toString();
@@ -197,6 +238,11 @@ const App: React.FC = () => {
         setFilter={setFilter}
         totalNotes={notes.length}
       />
+      {isSaving && (
+        <div className="fixed top-4 right-4 z-50 bg-stone-800 text-white text-xs px-2 py-1 rounded-full opacity-50 animate-pulse">
+            云同步中...
+        </div>
+      )}
 
       <main className="max-w-2xl mx-auto px-4 pt-6">
         {!hasNotes ? (

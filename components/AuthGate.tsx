@@ -7,6 +7,8 @@ interface AuthGateProps {
 
 const AUTH_TOKEN_KEY = 'clip_memo_auth_token';
 
+export const getAuthToken = () => localStorage.getItem(AUTH_TOKEN_KEY);
+
 export const checkAuthToken = async (): Promise<boolean> => {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   if (!token) return false;
